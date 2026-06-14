@@ -2,6 +2,7 @@
 
 const overlay      = document.getElementById('overlay');
 const overlayError = document.getElementById('overlay-error');
+const statusEl     = document.getElementById('status');
 const debugMeter   = document.getElementById('debug-meter');
 const debugBar     = document.getElementById('debug-bar');
 const debugValue   = document.getElementById('debug-value');
@@ -12,16 +13,46 @@ let analyser    = null;
 let sourceNode  = null;
 let timeDomain  = null;
 
+let isCalibrating    = false;
+let calibrationStart = 0;
+const CALIBRATION_MS = 3000;
+let calibrationSamples = [];
+let noiseFloor = 0;
+
 
 let currentRMS = 0;
 
 function calcRMS(buffer) {
   let sum = 0;
   for (let i = 0; i < buffer.length; i++) {
-    const sample = (buffer[i] - 128) / 128;   // normalise 0–255 → -1…1
+    const sample = (buffer[i] - 128) / 128;
     sum += sample * sample;
   }
   return Math.sqrt(sum / buffer.length);
+}
+
+function showStatus(text) {
+  statusEl.textContent = text;
+  statusEl.classList.add('visible');
+}
+
+function hideStatus() {
+  statusEl.classList.remove('visible');
+}
+
+function startCalibration() {
+  isCalibrating = true;
+  calibrationStart = performance.now();
+  calibrationSamples = [];
+  showStatus('Calibrating… stay quiet');
+}
+
+function finishCalibration() {
+  isCalibrating = false;
+  const sum = calibrationSamples.reduce((a, b) => a + b, 0);
+  noiseFloor = sum / calibrationSamples.length;
+  console.log(`Noise floor set to ${noiseFloor.toFixed(5)} (${calibrationSamples.length} samples)`);
+  hideStatus();
 }
 
 function monitorLoop() {
@@ -31,8 +62,17 @@ function monitorLoop() {
   analyser.getByteTimeDomainData(timeDomain);
   currentRMS = calcRMS(timeDomain);
 
-  // Update debug meter
-  const pct = Math.min(currentRMS * 500, 100);   // scale for visibility
+  if (isCalibrating) {
+    calibrationSamples.push(currentRMS);
+    const elapsed = performance.now() - calibrationStart;
+    const remaining = Math.ceil((CALIBRATION_MS - elapsed) / 1000);
+    showStatus(`Calibrating… stay quiet (${remaining}s)`);
+    if (elapsed >= CALIBRATION_MS) {
+      finishCalibration();
+    }
+  }
+
+  const pct = Math.min(currentRMS * 500, 100);
   debugBar.style.width = pct + '%';
   debugValue.textContent = currentRMS.toFixed(4);
 }
@@ -60,6 +100,8 @@ overlay.addEventListener('click', async () => {
     timeDomain = new Uint8Array(analyser.fftSize);
 
     overlay.classList.add('hidden');
+
+    startCalibration();
 
     monitorLoop();
 

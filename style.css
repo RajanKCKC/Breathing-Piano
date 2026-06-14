@@ -78,13 +78,33 @@ html, body {
   50%      { opacity: 1;   transform: scale(1.04); }
 }
 
+.status {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  color: rgba(200, 200, 220, 0.7);
+  text-transform: uppercase;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  z-index: 100;
+}
+
+.status.visible {
+  opacity: 1;
+}
+
 .debug-meter {
   position: fixed;
   bottom: 20px;
   left: 20px;
   width: 200px;
   height: 12px;
-  background: rgb(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   overflow: hidden;
   z-index: 500;
