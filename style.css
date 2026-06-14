@@ -21,7 +21,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipe at center, #1121a 0%, #0a0a0f 70%);
+  background: radial-gradient(ellipse at center, #12121a 0%, #0a0a0f 70%);
   z-index: 1000;
   cursor: pointer;
   transition: opacity 0.8s ease, visibility 0.8s ease;
@@ -45,7 +45,7 @@ html, body {
   color: #ffffff;
   margin-bottom: 1.5rem;
   text-transform: uppercase;
-  background: linear-gradient(15deg, #c9a0ff 0%, #7eb8ff 50%, #a0ffc9 100%);
+  background: linear-gradient(135deg, #c9a0ff 0%, #7eb8ff 50%, #a0ffc9 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -60,7 +60,20 @@ html, body {
   animation: breathe 3s ease-in-out infinite;
 }
 
+.overlay-error {
+  margin: 1.5rem;
+  font-size: 0.85rem;
+  color: #ff6b8a;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.overlay-error.visible {
+  opacity: 1;
+}
+
 @keyframes breathe {
-  0%, 100% { opacity: 0.4; transform: scale(1);}
-  50% { opacity: 1; transform: scale(1.04);}
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.04); }
 }
