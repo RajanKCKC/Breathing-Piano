@@ -6,6 +6,7 @@ const statusEl     = document.getElementById('status');
 const debugMeter   = document.getElementById('debug-meter');
 const debugBar     = document.getElementById('debug-bar');
 const debugValue   = document.getElementById('debug-value');
+const debugState   = document.getElementById('debug-state');
 
 let micStream   = null;
 let audioCtx    = null;
@@ -19,6 +20,11 @@ const CALIBRATION_MS = 3000;
 let calibrationSamples = [];
 let noiseFloor = 0;
 
+const ONSET_MULTIPLIER  = 2.5;
+const RELEASE_MULTIPLIER = 1.5;
+let breathState = 'idle';
+let onsetThreshold  = 0;
+let releaseThreshold = 0;
 
 let currentRMS = 0;
 
@@ -51,8 +57,26 @@ function finishCalibration() {
   isCalibrating = false;
   const sum = calibrationSamples.reduce((a, b) => a + b, 0);
   noiseFloor = sum / calibrationSamples.length;
-  console.log(`Noise floor set to ${noiseFloor.toFixed(5)} (${calibrationSamples.length} samples)`);
+
+  onsetThreshold   = noiseFloor * ONSET_MULTIPLIER;
+  releaseThreshold = noiseFloor * RELEASE_MULTIPLIER;
+
+  console.log(`Noise floor: ${noiseFloor.toFixed(5)} | Onset: ${onsetThreshold.toFixed(5)} | Release: ${releaseThreshold.toFixed(5)}`);
   hideStatus();
+}
+
+function detectBreath() {
+  if (isCalibrating || noiseFloor === 0) return;
+
+  if (breathState === 'idle' && currentRMS > onsetThreshold) {
+    // Breath started
+    breathState = 'breathing';
+    console.log('🌬️ Breath onset');
+  } else if (breathState === 'breathing' && currentRMS < releaseThreshold) {
+    // Breath ended
+    breathState = 'idle';
+    console.log('✋ Breath release');
+  }
 }
 
 function monitorLoop() {
@@ -67,14 +91,15 @@ function monitorLoop() {
     const elapsed = performance.now() - calibrationStart;
     const remaining = Math.ceil((CALIBRATION_MS - elapsed) / 1000);
     showStatus(`Calibrating… stay quiet (${remaining}s)`);
-    if (elapsed >= CALIBRATION_MS) {
-      finishCalibration();
-    }
+    if (elapsed >= CALIBRATION_MS) finishCalibration();
   }
+
+  detectBreath();
 
   const pct = Math.min(currentRMS * 500, 100);
   debugBar.style.width = pct + '%';
   debugValue.textContent = currentRMS.toFixed(4);
+  debugState.textContent = breathState;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -100,9 +125,7 @@ overlay.addEventListener('click', async () => {
     timeDomain = new Uint8Array(analyser.fftSize);
 
     overlay.classList.add('hidden');
-
     startCalibration();
-
     monitorLoop();
 
     console.log('Audio pipeline ready ✓');

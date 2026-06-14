@@ -132,3 +132,13 @@ html, body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+.debug-state {
+  position: absolute;
+  left: 280px;
+  font-size: 0.7rem;
+  color: rgba(160, 255, 200, 0.6);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
