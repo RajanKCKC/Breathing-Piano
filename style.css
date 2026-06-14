@@ -77,3 +77,38 @@ html, body {
   0%, 100% { opacity: 0.4; transform: scale(1); }
   50%      { opacity: 1;   transform: scale(1.04); }
 }
+
+.debug-meter {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 200px;
+  height: 12px;
+  background: rgb(255, 255, 255, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 500;
+  display: none;
+}
+
+.debug-meter.visible {
+  display: flex;
+  align-items: center;
+}
+
+.debug-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #7eb8ff, #c9a0ff);
+  border-radius: 6px;
+  transition: width 0.06s linear;
+}
+
+.debug-value {
+  position: absolute;
+  left: 210px;
+  font-size: 0.7rem;
+  color: rgba(200, 200, 220, 0.5);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
