@@ -61,7 +61,7 @@ html, body {
 }
 
 .overlay-error {
-  margin: 1.5rem;
+  margin-top: 1.5rem;
   font-size: 0.85rem;
   color: #ff6b8a;
   letter-spacing: 0.05em;
