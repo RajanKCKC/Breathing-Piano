@@ -27,6 +27,20 @@ let isInhaleMode = true;
 const MAX_VOICES = 8;
 let activeVoices = [];
 
+let inactivityTimeout = null;
+function resetInactivityTimer() {
+  if (!overlay.classList.contains('hidden')) return;
+  document.body.classList.remove('user-inactive');
+  clearTimeout(inactivityTimeout);
+  inactivityTimeout = setTimeout(() => {
+    document.body.classList.add('user-inactive');
+  }, 2500);
+}
+
+document.addEventListener('mousemove', resetInactivityTimer);
+document.addEventListener('keydown', resetInactivityTimer);
+document.addEventListener('touchstart', resetInactivityTimer);
+
 const THEMES = {
   purple: {
     name: 'Mystic Purple',
@@ -69,6 +83,7 @@ function cycleTheme() {
   const [color1, color2] = theme.getColors(4);
   glowBg.style.setProperty('--glow-color-1', color1);
   glowBg.style.setProperty('--glow-color-2', color2);
+  resetInactivityTimer();
 }
 
 const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
@@ -112,8 +127,8 @@ function calcRMS(buf) {
   return Math.sqrt(sum / buf.length);
 }
 
-function showStatus(t) { statusEl.textContent = t; statusEl.classList.add('visible'); }
-function hideStatus() { statusEl.classList.remove('visible'); }
+function showStatus(t) { statusEl.textContent = t; statusEl.classList.add('visible'); resetInactivityTimer(); }
+function hideStatus() { statusEl.classList.remove('visible'); resetInactivityTimer(); }
 
 function loadPiano() {
   return new Promise((resolve) => {
@@ -167,6 +182,7 @@ function finishCalibration() {
   onsetThreshold = noiseFloor * ONSET_MULTIPLIER;
   releaseThreshold = noiseFloor * RELEASE_MULTIPLIER;
   hideStatus();
+  resetInactivityTimer();
 }
 
 function detectBreath() {
@@ -220,6 +236,7 @@ function monitorLoop() {
 function toggleMode() {
   isInhaleMode = !isInhaleMode;
   modeLabel.textContent = isInhaleMode ? SCALES.inhale.label : SCALES.exhale.label;
+  resetInactivityTimer();
 }
 
 modeIndicator.addEventListener('click', toggleMode);
@@ -228,7 +245,10 @@ themeSelector.addEventListener('click', cycleTheme);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') toggleMode();
   if (e.key === 't' || e.key === 'T') cycleTheme();
-  if (e.key === 'd' || e.key === 'D') debugMeter.classList.toggle('visible');
+  if (e.key === 'd' || e.key === 'D') {
+    debugMeter.classList.toggle('visible');
+    resetInactivityTimer();
+  }
 });
 
 overlay.addEventListener('click', async () => {

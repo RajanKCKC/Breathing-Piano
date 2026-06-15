@@ -18,6 +18,15 @@
   box-sizing: border-box;
 }
 
+::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 html,
 body {
   width: 100%;
@@ -28,6 +37,20 @@ body {
   color: #e0e0e8;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body.user-inactive {
+  cursor: none;
+}
+
+body.user-inactive .mode-indicator,
+body.user-inactive .theme-selector {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.user-inactive .status {
+  opacity: 0;
 }
 
 .glow-bg {
@@ -119,7 +142,7 @@ body {
   text-transform: uppercase;
   user-select: none;
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.8s ease;
   z-index: 100;
 }
 
@@ -142,7 +165,7 @@ body {
   padding: 8px 16px;
   border: 1px solid rgba(200, 200, 220, 0.1);
   border-radius: 20px;
-  transition: color 0.3s ease, border-color 0.3s ease;
+  transition: color 0.3s ease, border-color 0.3s ease, opacity 0.8s ease;
 }
 
 .mode-indicator:hover {
@@ -165,7 +188,7 @@ body {
   padding: 8px 16px;
   border: 1px solid rgba(200, 200, 220, 0.1);
   border-radius: 20px;
-  transition: color 0.3s ease, border-color 0.3s ease;
+  transition: color 0.3s ease, border-color 0.3s ease, opacity 0.8s ease;
 }
 
 .theme-selector:hover {
