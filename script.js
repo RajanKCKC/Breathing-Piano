@@ -4,6 +4,8 @@ const overlay         = document.getElementById('overlay');
 const overlaySubtitle = document.getElementById('overlay-subtitle');
 const overlayError    = document.getElementById('overlay-error');
 const statusEl        = document.getElementById('status');
+const modeIndicator   = document.getElementById('mode-indicator');
+const modeLabel       = document.getElementById('mode-label');
 const debugMeter      = document.getElementById('debug-meter');
 const debugBar        = document.getElementById('debug-bar');
 const debugValue      = document.getElementById('debug-value');
@@ -36,6 +38,8 @@ let piano       = null;
 let reverb      = null;
 let pianoReady  = false;
 
+let isInhaleMode = true;
+
 const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
 const PIANO_SAMPLES = {
   A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
@@ -52,27 +56,59 @@ for (const [note, file] of Object.entries(PIANO_SAMPLES)) {
   sampleUrls[note] = SAMPLE_BASE + file;
 }
 
-const ALL_NOTES = [];
+const SCALES = {
+  inhale: {
+    label: 'Inhale · Major',
+    intervals: [0, 2, 4, 5, 7, 9, 11],
+  },
+  exhale: {
+    label: 'Exhale · Minor',
+    intervals: [0, 2, 3, 5, 7, 8, 10],
+  },
+};
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-for (let octave = 1; octave <= 7; octave++) {
-  for (const name of NOTE_NAMES) {
-    ALL_NOTES.push(name + octave);
+
+function buildScaleNotes(intervals) {
+  const notes = [];
+  for (let octave = 1; octave <= 7; octave++) {
+    for (const interval of intervals) {
+      const noteIndex = interval;
+      if (noteIndex < NOTE_NAMES.length) {
+        notes.push(NOTE_NAMES[noteIndex] + octave);
+      }
+    }
   }
+  return notes;
 }
+
+const INHALE_NOTES = buildScaleNotes(SCALES.inhale.intervals);
+const EXHALE_NOTES = buildScaleNotes(SCALES.exhale.intervals);
 
 const MIN_DURATION = 150;
 const MAX_DURATION = 4000;
 
 function durationToNote(durationMs) {
-
+  const notePool = isInhaleMode ? INHALE_NOTES : EXHALE_NOTES;
   const d = Math.max(MIN_DURATION, Math.min(durationMs, MAX_DURATION));
-
   const t = (d - MIN_DURATION) / (MAX_DURATION - MIN_DURATION);
-
-  const noteIndex = Math.round((1 - t) * (ALL_NOTES.length - 1));
-
-  return ALL_NOTES[noteIndex];
+  const noteIndex = Math.round((1 - t) * (notePool.length - 1));
+  return notePool[noteIndex];
 }
+
+function toggleMode() {
+  isInhaleMode = !isInhaleMode;
+  const scale = isInhaleMode ? SCALES.inhale : SCALES.exhale;
+  modeLabel.textContent = scale.label;
+  console.log(`Mode: ${scale.label}`);
+}
+
+modeIndicator.addEventListener('click', toggleMode);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'm' || e.key === 'M') toggleMode();
+  if (e.key === 'd' || e.key === 'D') debugMeter.classList.toggle('visible');
+});
 
 function calcRMS(buffer) {
   let sum = 0;
@@ -142,10 +178,9 @@ function detectBreath() {
 
 function onBreathEnd(durationMs, peakRMS) {
   if (durationMs < MIN_DURATION) return;
-
   const note = durationToNote(durationMs);
-  console.log(`Breath → ${note} (${durationMs.toFixed(0)}ms, peak ${peakRMS.toFixed(4)})`);
-
+  const mode = isInhaleMode ? 'inhale' : 'exhale';
+  console.log(`[${mode}] Breath → ${note} (${durationMs.toFixed(0)}ms)`);
 }
 
 function monitorLoop() {
@@ -170,11 +205,6 @@ function monitorLoop() {
   debugValue.textContent = currentRMS.toFixed(4);
   debugState.textContent = breathState;
 }
-
-// Debug toggle
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'd' || e.key === 'D') debugMeter.classList.toggle('visible');
-});
 
 overlay.addEventListener('click', async () => {
   try {
