@@ -150,6 +150,29 @@ body {
   border-color: rgba(200, 200, 220, 0.25);
 }
 
+.theme-selector {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(200, 200, 220, 0.35);
+  user-select: none;
+  z-index: 100;
+  cursor: pointer;
+  padding: 8px 16px;
+  border: 1px solid rgba(200, 200, 220, 0.1);
+  border-radius: 20px;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.theme-selector:hover {
+  color: rgba(200, 200, 220, 0.6);
+  border-color: rgba(200, 200, 220, 0.25);
+}
+
 .debug-meter {
   position: fixed;
   bottom: 20px;

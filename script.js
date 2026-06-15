@@ -1,16 +1,18 @@
 'use strict';
 
-const overlay = document.getElementById('overlay');
+const overlay         = document.getElementById('overlay');
 const overlaySubtitle = document.getElementById('overlay-subtitle');
-const overlayError = document.getElementById('overlay-error');
-const statusEl = document.getElementById('status');
-const modeIndicator = document.getElementById('mode-indicator');
-const modeLabel = document.getElementById('mode-label');
-const debugMeter = document.getElementById('debug-meter');
-const debugBar = document.getElementById('debug-bar');
-const debugValue = document.getElementById('debug-value');
-const debugState = document.getElementById('debug-state');
-const glowBg = document.getElementById('glow-bg');
+const overlayError    = document.getElementById('overlay-error');
+const statusEl        = document.getElementById('status');
+const modeIndicator   = document.getElementById('mode-indicator');
+const modeLabel       = document.getElementById('mode-label');
+const themeSelector   = document.getElementById('theme-selector');
+const themeLabel       = document.getElementById('theme-label');
+const debugMeter      = document.getElementById('debug-meter');
+const debugBar        = document.getElementById('debug-bar');
+const debugValue      = document.getElementById('debug-value');
+const debugState      = document.getElementById('debug-state');
+const glowBg          = document.getElementById('glow-bg');
 
 let micStream = null, audioCtx = null, analyser = null, sourceNode = null, timeDomain = null;
 let isCalibrating = false, calibrationStart = 0;
@@ -24,6 +26,50 @@ let isInhaleMode = true;
 
 const MAX_VOICES = 8;
 let activeVoices = [];
+
+const THEMES = {
+  purple: {
+    name: 'Mystic Purple',
+    getColors: (octave) => {
+      const hue = 240 + Math.round(((octave - 1) / 6) * 80);
+      return [`hsla(${hue}, 45%, 15%, 0.8)`, `hsl(${hue}, 20%, 5%)`];
+    }
+  },
+  forest: {
+    name: 'Forest Healing',
+    getColors: (octave) => {
+      const hue = 90 + Math.round(((octave - 1) / 6) * 70);
+      return [`hsla(${hue}, 40%, 12%, 0.8)`, `hsl(${hue}, 18%, 4%)`];
+    }
+  },
+  ocean: {
+    name: 'Ocean Deep',
+    getColors: (octave) => {
+      const hue = 185 + Math.round(((octave - 1) / 6) * 55);
+      return [`hsla(${hue}, 45%, 13%, 0.8)`, `hsl(${hue}, 20%, 5%)`];
+    }
+  },
+  classic: {
+    name: 'Ebony & Ivory',
+    getColors: (octave) => {
+      const lightness1 = 8 + Math.round(((octave - 1) / 6) * 14);
+      const lightness2 = 3 + Math.round(((octave - 1) / 6) * 3);
+      return [`hsla(0, 0%, ${lightness1}%, 0.85)`, `hsl(0, 0%, ${lightness2}%)`];
+    }
+  }
+};
+const themeKeys = Object.keys(THEMES);
+let currentThemeIndex = 0;
+
+function cycleTheme() {
+  currentThemeIndex = (currentThemeIndex + 1) % themeKeys.length;
+  const theme = THEMES[themeKeys[currentThemeIndex]];
+  themeLabel.textContent = `Theme · ${theme.name}`;
+  // Show a preview color immediately using a neutral mid octave
+  const [color1, color2] = theme.getColors(4);
+  glowBg.style.setProperty('--glow-color-1', color1);
+  glowBg.style.setProperty('--glow-color-2', color2);
+}
 
 const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
 const PIANO_SAMPLES = {
@@ -44,7 +90,6 @@ const SCALES = {
   exhale: { label: 'Exhale · Minor', intervals: [0, 2, 3, 5, 7, 8, 10] },
 };
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
 function buildScaleNotes(intervals) {
   const notes = [];
   for (let o = 1; o <= 7; o++) for (const i of intervals) if (i < NOTE_NAMES.length) notes.push(NOTE_NAMES[i] + o);
@@ -54,7 +99,6 @@ const INHALE_NOTES = buildScaleNotes(SCALES.inhale.intervals);
 const EXHALE_NOTES = buildScaleNotes(SCALES.exhale.intervals);
 
 const MIN_DURATION = 150, MAX_DURATION = 4000;
-
 function durationToNote(ms) {
   const pool = isInhaleMode ? INHALE_NOTES : EXHALE_NOTES;
   const d = Math.max(MIN_DURATION, Math.min(ms, MAX_DURATION));
@@ -83,34 +127,40 @@ function loadPiano() {
 
 function updateColorsForNote(note) {
   const octave = parseInt(note.slice(-1), 10) || 4;
-  const hue = Math.round(((octave - 1) / 6) * 320);
-  const color1 = `hsla(${hue}, 45%, 15%, 0.8)`;
-  const color2 = `hsl(${hue}, 20%, 5%)`;
+  const theme = THEMES[themeKeys[currentThemeIndex]];
+  const [color1, color2] = theme.getColors(octave);
+  
   glowBg.style.setProperty('--glow-color-1', color1);
   glowBg.style.setProperty('--glow-color-2', color2);
 }
 
 function playNote(note, velocity) {
   if (!pianoReady || !piano) return;
+
   const now = Tone.now();
+
   if (activeVoices.length >= MAX_VOICES) {
     const oldest = activeVoices.shift();
     piano.triggerRelease(oldest.note, now);
   }
+
   piano.triggerAttack(note, now, velocity);
   activeVoices.push({ note, time: now });
+
   updateColorsForNote(note);
+
   setTimeout(() => {
     activeVoices = activeVoices.filter(v => v.note !== note || v.time !== now);
     piano.triggerRelease(note, Tone.now());
   }, 6000);
+
+  console.log(`🎹 ${note} vel=${velocity.toFixed(2)} (voices: ${activeVoices.length})`);
 }
 
 function startCalibration() {
   isCalibrating = true; calibrationStart = performance.now();
   calibrationSamples = []; showStatus('Calibrating… stay quiet');
 }
-
 function finishCalibration() {
   isCalibrating = false;
   noiseFloor = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
@@ -136,8 +186,10 @@ function detectBreath() {
 function onBreathEnd(durationMs, peakRMS) {
   if (durationMs < MIN_DURATION) return;
   const note = durationToNote(durationMs);
+
   const normalizedPeak = Math.min((peakRMS - noiseFloor) / (noiseFloor * 10), 1);
   const velocity = 0.1 + Math.max(0, normalizedPeak) * 0.9;
+
   playNote(note, velocity);
 }
 
@@ -154,10 +206,12 @@ function monitorLoop() {
     if (elapsed >= CALIBRATION_MS) finishCalibration();
   }
   detectBreath();
+
   const baseSize = 35;
   const targetSize = baseSize + currentRMS * 250;
   const clampedSize = Math.min(Math.max(baseSize, targetSize), 95);
   glowBg.style.setProperty('--glow-size', `${clampedSize}%`);
+
   debugBar.style.width = Math.min(currentRMS * 500, 100) + '%';
   debugValue.textContent = currentRMS.toFixed(4);
   debugState.textContent = breathState;
@@ -169,8 +223,11 @@ function toggleMode() {
 }
 
 modeIndicator.addEventListener('click', toggleMode);
+themeSelector.addEventListener('click', cycleTheme);
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') toggleMode();
+  if (e.key === 't' || e.key === 'T') cycleTheme();
   if (e.key === 'd' || e.key === 'D') debugMeter.classList.toggle('visible');
 });
 
