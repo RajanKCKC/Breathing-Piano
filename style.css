@@ -42,7 +42,6 @@ html, body {
   font-size: clamp(2rem, 6vw, 4.5rem);
   font-weight: 300;
   letter-spacing: 0.08em;
-  color: #ffffff;
   margin-bottom: 1.5rem;
   text-transform: uppercase;
   background: linear-gradient(135deg, #c9a0ff 0%, #7eb8ff 50%, #a0ffc9 100%);

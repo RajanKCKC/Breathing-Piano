@@ -1,12 +1,13 @@
 'use strict';
 
-const overlay      = document.getElementById('overlay');
-const overlayError = document.getElementById('overlay-error');
-const statusEl     = document.getElementById('status');
-const debugMeter   = document.getElementById('debug-meter');
-const debugBar     = document.getElementById('debug-bar');
-const debugValue   = document.getElementById('debug-value');
-const debugState   = document.getElementById('debug-state');
+const overlay         = document.getElementById('overlay');
+const overlaySubtitle = document.getElementById('overlay-subtitle');
+const overlayError    = document.getElementById('overlay-error');
+const statusEl        = document.getElementById('status');
+const debugMeter      = document.getElementById('debug-meter');
+const debugBar        = document.getElementById('debug-bar');
+const debugValue      = document.getElementById('debug-value');
+const debugState      = document.getElementById('debug-state');
 
 let micStream   = null;
 let audioCtx    = null;
@@ -28,10 +29,29 @@ let releaseThreshold = 0;
 let breathStartTime = 0;
 let breathDuration  = 0;
 let breathPeakRMS   = 0;
-
 let currentRMS = 0;
 
 let toneStarted = false;
+let piano       = null;
+let reverb      = null;
+let pianoReady  = false;
+
+const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
+const PIANO_SAMPLES = {
+  A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
+  A1: 'A1.mp3', C2: 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
+  A2: 'A2.mp3', C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
+  A3: 'A3.mp3', C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
+  A4: 'A4.mp3', C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
+  A5: 'A5.mp3', C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3',
+  A6: 'A6.mp3', C7: 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
+  A7: 'A7.mp3', C8: 'C8.mp3',
+};
+
+const sampleUrls = {};
+for (const [note, file] of Object.entries(PIANO_SAMPLES)) {
+  sampleUrls[note] = SAMPLE_BASE + file;
+}
 
 function calcRMS(buffer) {
   let sum = 0;
@@ -51,6 +71,23 @@ function hideStatus() {
   statusEl.classList.remove('visible');
 }
 
+function loadPiano() {
+  return new Promise((resolve) => {
+    reverb = new Tone.Reverb({ decay: 4, wet: 0.3 }).toDestination();
+
+    piano = new Tone.Sampler({
+      urls: sampleUrls,
+      release: 2,
+      onload: () => {
+        piano.connect(reverb);
+        pianoReady = true;
+        console.log('Piano sampler loaded ✓');
+        resolve();
+      },
+    });
+  });
+}
+
 function startCalibration() {
   isCalibrating = true;
   calibrationStart = performance.now();
@@ -64,7 +101,7 @@ function finishCalibration() {
   noiseFloor = sum / calibrationSamples.length;
   onsetThreshold   = noiseFloor * ONSET_MULTIPLIER;
   releaseThreshold = noiseFloor * RELEASE_MULTIPLIER;
-  console.log(`Noise floor: ${noiseFloor.toFixed(5)} | Onset: ${onsetThreshold.toFixed(5)} | Release: ${releaseThreshold.toFixed(5)}`);
+  console.log(`Noise floor: ${noiseFloor.toFixed(5)}`);
   hideStatus();
 }
 
@@ -112,12 +149,16 @@ function monitorLoop() {
   debugState.textContent = breathState;
 }
 
+// Debug toggle
 document.addEventListener('keydown', (e) => {
   if (e.key === 'd' || e.key === 'D') debugMeter.classList.toggle('visible');
 });
 
 overlay.addEventListener('click', async () => {
   try {
+    overlaySubtitle.textContent = 'Loading piano…';
+    overlaySubtitle.style.animation = 'none';
+
     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -133,16 +174,18 @@ overlay.addEventListener('click', async () => {
 
     await Tone.start();
     toneStarted = true;
-    console.log('Tone.js started ✓');
+    await loadPiano();
 
     overlay.classList.add('hidden');
     startCalibration();
     monitorLoop();
 
-    console.log('Audio pipeline ready ✓');
+    console.log('Full audio pipeline ready ✓');
   } catch (err) {
     console.error('Startup error:', err);
     overlayError.textContent = 'Microphone access is required. Please allow and try again.';
     overlayError.classList.add('visible');
+    overlaySubtitle.textContent = 'Click anywhere to begin';
+    overlaySubtitle.style.animation = '';
   }
 });
