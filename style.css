@@ -1,10 +1,25 @@
-*, *::before, *::after {
+@property --glow-color-1 {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(26, 21, 40, 0.8);
+}
+
+@property --glow-color-2 {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgb(10, 10, 15);
+}
+
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -13,6 +28,15 @@ html, body {
   color: #e0e0e8;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.glow-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(circle at center, var(--glow-color-1) 0%, var(--glow-color-2) var(--glow-size, 45%));
+  transition: --glow-color-1 1.5s ease, --glow-color-2 1.5s ease;
+  pointer-events: none;
 }
 
 .overlay {
@@ -73,8 +97,14 @@ html, body {
 }
 
 @keyframes breathe {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.04); }
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
 }
 
 .status {
