@@ -25,12 +25,13 @@ const RELEASE_MULTIPLIER = 1.5;
 let breathState = 'idle';
 let onsetThreshold  = 0;
 let releaseThreshold = 0;
-
 let breathStartTime = 0;
 let breathDuration  = 0;
 let breathPeakRMS   = 0;
 
 let currentRMS = 0;
+
+let toneStarted = false;
 
 function calcRMS(buffer) {
   let sum = 0;
@@ -61,10 +62,8 @@ function finishCalibration() {
   isCalibrating = false;
   const sum = calibrationSamples.reduce((a, b) => a + b, 0);
   noiseFloor = sum / calibrationSamples.length;
-
   onsetThreshold   = noiseFloor * ONSET_MULTIPLIER;
   releaseThreshold = noiseFloor * RELEASE_MULTIPLIER;
-
   console.log(`Noise floor: ${noiseFloor.toFixed(5)} | Onset: ${onsetThreshold.toFixed(5)} | Release: ${releaseThreshold.toFixed(5)}`);
   hideStatus();
 }
@@ -76,25 +75,18 @@ function detectBreath() {
     breathState     = 'breathing';
     breathStartTime = performance.now();
     breathPeakRMS   = currentRMS;
-    console.log('🌬️ Breath onset');
-
   } else if (breathState === 'breathing') {
-    if (currentRMS > breathPeakRMS) {
-      breathPeakRMS = currentRMS;
-    }
-
+    if (currentRMS > breathPeakRMS) breathPeakRMS = currentRMS;
     if (currentRMS < releaseThreshold) {
       breathDuration = performance.now() - breathStartTime;
       breathState = 'idle';
-      console.log(`✋ Breath release — duration: ${breathDuration.toFixed(0)}ms | peak: ${breathPeakRMS.toFixed(4)}`);
-
       onBreathEnd(breathDuration, breathPeakRMS);
     }
   }
 }
 
 function onBreathEnd(durationMs, peakRMS) {
-  console.log(`  → Duration: ${durationMs.toFixed(0)}ms, Peak RMS: ${peakRMS.toFixed(4)}`);
+  console.log(`Breath: ${durationMs.toFixed(0)}ms, Peak: ${peakRMS.toFixed(4)}`);
 }
 
 function monitorLoop() {
@@ -121,9 +113,7 @@ function monitorLoop() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'd' || e.key === 'D') {
-    debugMeter.classList.toggle('visible');
-  }
+  if (e.key === 'd' || e.key === 'D') debugMeter.classList.toggle('visible');
 });
 
 overlay.addEventListener('click', async () => {
@@ -139,8 +129,11 @@ overlay.addEventListener('click', async () => {
 
     sourceNode = audioCtx.createMediaStreamSource(micStream);
     sourceNode.connect(analyser);
-
     timeDomain = new Uint8Array(analyser.fftSize);
+
+    await Tone.start();
+    toneStarted = true;
+    console.log('Tone.js started ✓');
 
     overlay.classList.add('hidden');
     startCalibration();
@@ -148,7 +141,7 @@ overlay.addEventListener('click', async () => {
 
     console.log('Audio pipeline ready ✓');
   } catch (err) {
-    console.error('Microphone access denied:', err);
+    console.error('Startup error:', err);
     overlayError.textContent = 'Microphone access is required. Please allow and try again.';
     overlayError.classList.add('visible');
   }
