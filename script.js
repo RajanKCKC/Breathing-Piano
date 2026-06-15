@@ -47,10 +47,31 @@ const PIANO_SAMPLES = {
   A6: 'A6.mp3', C7: 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
   A7: 'A7.mp3', C8: 'C8.mp3',
 };
-
 const sampleUrls = {};
 for (const [note, file] of Object.entries(PIANO_SAMPLES)) {
   sampleUrls[note] = SAMPLE_BASE + file;
+}
+
+const ALL_NOTES = [];
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+for (let octave = 1; octave <= 7; octave++) {
+  for (const name of NOTE_NAMES) {
+    ALL_NOTES.push(name + octave);
+  }
+}
+
+const MIN_DURATION = 150;
+const MAX_DURATION = 4000;
+
+function durationToNote(durationMs) {
+
+  const d = Math.max(MIN_DURATION, Math.min(durationMs, MAX_DURATION));
+
+  const t = (d - MIN_DURATION) / (MAX_DURATION - MIN_DURATION);
+
+  const noteIndex = Math.round((1 - t) * (ALL_NOTES.length - 1));
+
+  return ALL_NOTES[noteIndex];
 }
 
 function calcRMS(buffer) {
@@ -66,7 +87,6 @@ function showStatus(text) {
   statusEl.textContent = text;
   statusEl.classList.add('visible');
 }
-
 function hideStatus() {
   statusEl.classList.remove('visible');
 }
@@ -74,7 +94,6 @@ function hideStatus() {
 function loadPiano() {
   return new Promise((resolve) => {
     reverb = new Tone.Reverb({ decay: 4, wet: 0.3 }).toDestination();
-
     piano = new Tone.Sampler({
       urls: sampleUrls,
       release: 2,
@@ -94,7 +113,6 @@ function startCalibration() {
   calibrationSamples = [];
   showStatus('Calibrating… stay quiet');
 }
-
 function finishCalibration() {
   isCalibrating = false;
   const sum = calibrationSamples.reduce((a, b) => a + b, 0);
@@ -123,7 +141,11 @@ function detectBreath() {
 }
 
 function onBreathEnd(durationMs, peakRMS) {
-  console.log(`Breath: ${durationMs.toFixed(0)}ms, Peak: ${peakRMS.toFixed(4)}`);
+  if (durationMs < MIN_DURATION) return;
+
+  const note = durationToNote(durationMs);
+  console.log(`Breath → ${note} (${durationMs.toFixed(0)}ms, peak ${peakRMS.toFixed(4)})`);
+
 }
 
 function monitorLoop() {
@@ -179,8 +201,6 @@ overlay.addEventListener('click', async () => {
     overlay.classList.add('hidden');
     startCalibration();
     monitorLoop();
-
-    console.log('Full audio pipeline ready ✓');
   } catch (err) {
     console.error('Startup error:', err);
     overlayError.textContent = 'Microphone access is required. Please allow and try again.';
