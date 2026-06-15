@@ -26,6 +26,10 @@ let breathState = 'idle';
 let onsetThreshold  = 0;
 let releaseThreshold = 0;
 
+let breathStartTime = 0;
+let breathDuration  = 0;
+let breathPeakRMS   = 0;
+
 let currentRMS = 0;
 
 function calcRMS(buffer) {
@@ -69,14 +73,28 @@ function detectBreath() {
   if (isCalibrating || noiseFloor === 0) return;
 
   if (breathState === 'idle' && currentRMS > onsetThreshold) {
-    // Breath started
-    breathState = 'breathing';
+    breathState     = 'breathing';
+    breathStartTime = performance.now();
+    breathPeakRMS   = currentRMS;
     console.log('🌬️ Breath onset');
-  } else if (breathState === 'breathing' && currentRMS < releaseThreshold) {
-    // Breath ended
-    breathState = 'idle';
-    console.log('✋ Breath release');
+
+  } else if (breathState === 'breathing') {
+    if (currentRMS > breathPeakRMS) {
+      breathPeakRMS = currentRMS;
+    }
+
+    if (currentRMS < releaseThreshold) {
+      breathDuration = performance.now() - breathStartTime;
+      breathState = 'idle';
+      console.log(`✋ Breath release — duration: ${breathDuration.toFixed(0)}ms | peak: ${breathPeakRMS.toFixed(4)}`);
+
+      onBreathEnd(breathDuration, breathPeakRMS);
+    }
   }
+}
+
+function onBreathEnd(durationMs, peakRMS) {
+  console.log(`  → Duration: ${durationMs.toFixed(0)}ms, Peak RMS: ${peakRMS.toFixed(4)}`);
 }
 
 function monitorLoop() {
