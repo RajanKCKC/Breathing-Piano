@@ -1,18 +1,17 @@
 'use strict';
 
-const overlay         = document.getElementById('overlay');
+const overlay = document.getElementById('overlay');
 const overlaySubtitle = document.getElementById('overlay-subtitle');
-const overlayError    = document.getElementById('overlay-error');
-const statusEl        = document.getElementById('status');
-const modeIndicator   = document.getElementById('mode-indicator');
-const modeLabel       = document.getElementById('mode-label');
-const debugMeter      = document.getElementById('debug-meter');
-const debugBar        = document.getElementById('debug-bar');
-const debugValue      = document.getElementById('debug-value');
-const debugState      = document.getElementById('debug-state');
+const overlayError = document.getElementById('overlay-error');
+const statusEl = document.getElementById('status');
+const modeIndicator = document.getElementById('mode-indicator');
+const modeLabel = document.getElementById('mode-label');
+const debugMeter = document.getElementById('debug-meter');
+const debugBar = document.getElementById('debug-bar');
+const debugValue = document.getElementById('debug-value');
+const debugState = document.getElementById('debug-state');
 
 let micStream = null, audioCtx = null, analyser = null, sourceNode = null, timeDomain = null;
-
 let isCalibrating = false, calibrationStart = 0;
 const CALIBRATION_MS = 3000;
 let calibrationSamples = [], noiseFloor = 0;
@@ -22,8 +21,10 @@ let breathState = 'idle', onsetThreshold = 0, releaseThreshold = 0;
 let breathStartTime = 0, breathDuration = 0, breathPeakRMS = 0, currentRMS = 0;
 
 let toneStarted = false, piano = null, reverb = null, pianoReady = false;
-
 let isInhaleMode = true;
+
+const MAX_VOICES = 8;
+let activeVoices = [];
 
 const SAMPLE_BASE = 'https://tonejs.github.io/audio/salamander/';
 const PIANO_SAMPLES = {
@@ -36,22 +37,24 @@ const PIANO_SAMPLES = {
   A6: 'A6.mp3', C7: 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3',
   A7: 'A7.mp3', C8: 'C8.mp3',
 };
+
 const sampleUrls = {};
-for (const [note, file] of Object.entries(PIANO_SAMPLES)) {
-  sampleUrls[note] = SAMPLE_BASE + file;
+for (const [n, f] of Object.entries(PIANO_SAMPLES)) {
+  sampleUrls[n] = SAMPLE_BASE + f;
 }
 
 const SCALES = {
   inhale: { label: 'Inhale · Major', intervals: [0, 2, 4, 5, 7, 9, 11] },
   exhale: { label: 'Exhale · Minor', intervals: [0, 2, 3, 5, 7, 8, 10] },
 };
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 function buildScaleNotes(intervals) {
   const notes = [];
-  for (let octave = 1; octave <= 7; octave++) {
-    for (const interval of intervals) {
-      if (interval < NOTE_NAMES.length) notes.push(NOTE_NAMES[interval] + octave);
+  for (let o = 1; o <= 7; o++) {
+    for (const i of intervals) {
+      if (i < NOTE_NAMES.length) notes.push(NOTE_NAMES[i] + o);
     }
   }
   return notes;
@@ -62,46 +65,72 @@ const EXHALE_NOTES = buildScaleNotes(SCALES.exhale.intervals);
 
 const MIN_DURATION = 150, MAX_DURATION = 4000;
 
-function durationToNote(durationMs) {
-  const notePool = isInhaleMode ? INHALE_NOTES : EXHALE_NOTES;
-  const d = Math.max(MIN_DURATION, Math.min(durationMs, MAX_DURATION));
+function durationToNote(ms) {
+  const pool = isInhaleMode ? INHALE_NOTES : EXHALE_NOTES;
+  const d = Math.max(MIN_DURATION, Math.min(ms, MAX_DURATION));
   const t = (d - MIN_DURATION) / (MAX_DURATION - MIN_DURATION);
-  const noteIndex = Math.round((1 - t) * (notePool.length - 1));
-  return notePool[noteIndex];
+  return pool[Math.round((1 - t) * (pool.length - 1))];
 }
 
-function calcRMS(buffer) {
+function calcRMS(buf) {
   let sum = 0;
-  for (let i = 0; i < buffer.length; i++) {
-    const s = (buffer[i] - 128) / 128;
+  for (let i = 0; i < buf.length; i++) {
+    const s = (buf[i] - 128) / 128;
     sum += s * s;
   }
-  return Math.sqrt(sum / buffer.length);
+  return Math.sqrt(sum / buf.length);
 }
 
-function showStatus(text) { statusEl.textContent = text; statusEl.classList.add('visible'); }
-function hideStatus() { statusEl.classList.remove('visible'); }
+function showStatus(t) {
+  statusEl.textContent = t;
+  statusEl.classList.add('visible');
+}
+
+function hideStatus() {
+  statusEl.classList.remove('visible');
+}
 
 function loadPiano() {
   return new Promise((resolve) => {
     reverb = new Tone.Reverb({ decay: 4, wet: 0.3 }).toDestination();
     piano = new Tone.Sampler({
-      urls: sampleUrls, release: 2,
-      onload: () => { piano.connect(reverb); pianoReady = true; resolve(); },
+      urls: sampleUrls,
+      release: 2,
+      onload: () => {
+        piano.connect(reverb);
+        pianoReady = true;
+        resolve();
+      },
     });
   });
 }
 
 function playNote(note, velocity) {
   if (!pianoReady || !piano) return;
-  piano.triggerAttackRelease(note, '2n', Tone.now(), velocity);
-  console.log(`🎹 Playing ${note} vel=${velocity.toFixed(2)}`);
+
+  const now = Tone.now();
+
+  if (activeVoices.length >= MAX_VOICES) {
+    const oldest = activeVoices.shift();
+    piano.triggerRelease(oldest.note, now);
+  }
+
+  piano.triggerAttack(note, now, velocity);
+  activeVoices.push({ note, time: now });
+
+  setTimeout(() => {
+    activeVoices = activeVoices.filter(v => v.note !== note || v.time !== now);
+    piano.triggerRelease(note, Tone.now());
+  }, 6000);
 }
 
 function startCalibration() {
-  isCalibrating = true; calibrationStart = performance.now();
-  calibrationSamples = []; showStatus('Calibrating… stay quiet');
+  isCalibrating = true;
+  calibrationStart = performance.now();
+  calibrationSamples = [];
+  showStatus('Calibrating… stay quiet');
 }
+
 function finishCalibration() {
   isCalibrating = false;
   noiseFloor = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
@@ -113,7 +142,9 @@ function finishCalibration() {
 function detectBreath() {
   if (isCalibrating || noiseFloor === 0) return;
   if (breathState === 'idle' && currentRMS > onsetThreshold) {
-    breathState = 'breathing'; breathStartTime = performance.now(); breathPeakRMS = currentRMS;
+    breathState = 'breathing';
+    breathStartTime = performance.now();
+    breathPeakRMS = currentRMS;
   } else if (breathState === 'breathing') {
     if (currentRMS > breathPeakRMS) breathPeakRMS = currentRMS;
     if (currentRMS < releaseThreshold) {
@@ -150,8 +181,8 @@ function monitorLoop() {
   }
 
   detectBreath();
-  const pct = Math.min(currentRMS * 500, 100);
-  debugBar.style.width = pct + '%';
+
+  debugBar.style.width = Math.min(currentRMS * 500, 100) + '%';
   debugValue.textContent = currentRMS.toFixed(4);
   debugState.textContent = breathState;
 }
@@ -160,6 +191,7 @@ function toggleMode() {
   isInhaleMode = !isInhaleMode;
   modeLabel.textContent = isInhaleMode ? SCALES.inhale.label : SCALES.exhale.label;
 }
+
 modeIndicator.addEventListener('click', toggleMode);
 
 document.addEventListener('keydown', (e) => {
@@ -174,24 +206,26 @@ overlay.addEventListener('click', async () => {
 
     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
     if (audioCtx.state === 'suspended') await audioCtx.resume();
-
+    
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.8;
+    
     sourceNode = audioCtx.createMediaStreamSource(micStream);
     sourceNode.connect(analyser);
+    
     timeDomain = new Uint8Array(analyser.fftSize);
-
+    
     await Tone.start();
     toneStarted = true;
     await loadPiano();
-
+    
     overlay.classList.add('hidden');
     startCalibration();
     monitorLoop();
   } catch (err) {
-    console.error('Startup error:', err);
     overlayError.textContent = 'Microphone access is required. Please allow and try again.';
     overlayError.classList.add('visible');
     overlaySubtitle.textContent = 'Click anywhere to begin';
